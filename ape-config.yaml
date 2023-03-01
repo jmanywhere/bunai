@@ -1,0 +1,25 @@
+name: bunnyAi
+dependencies:
+  - name: OpenZeppelin
+    github: OpenZeppelin/openzeppelin-contracts
+    version: 4.8.1
+plugins:
+  - name: solidity
+  - name: hardhat
+  - name: etherscan
+solidity:
+  import_remapping:
+    - "@openzeppelin=OpenZeppelin/4.8.1"
+compiler:
+  ignore_files:
+    - "*package.json"
+    - "*package-lock.json"
+    - "*tsconfig.json"
+    - "*yarn.lock"
+    - "*node_modules/*"
+hardhat:
+  fork:
+    ethereum:
+      mainnet:
+        upstream_provider: "https://eth.public-rpc.com"
+        block_number: 16727000

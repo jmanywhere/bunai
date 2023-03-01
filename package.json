@@ -1,0 +1,12 @@
+{
+  "name": "bunnyAi",
+  "version": "1.0.0",
+  "description": "Bunny AI token for ETH/ARB",
+  "main": "index.js",
+  "author": "Semi Invader",
+  "license": "MIT",
+  "devDependencies": {
+    "hardhat": "^2.12.7"
+  },
+  "dependencies": {}
+}
