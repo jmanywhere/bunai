@@ -1,5 +1,5 @@
 {
-  "name": "bunnyAi",
+  "name": "bunny-ai",
   "version": "1.0.0",
   "description": "Bunny AI token for ETH/ARB",
   "main": "index.js",
@@ -8,5 +8,7 @@
   "devDependencies": {
     "hardhat": "^2.12.7"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.8.1"
+  }
 }
