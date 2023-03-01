@@ -9,7 +9,7 @@ plugins:
   - name: etherscan
 solidity:
   import_remapping:
-    - "@openzeppelin=OpenZeppelin/4.8.1"
+    - "@openzeppelin/contracts=OpenZeppelin/4.8.1"
 compiler:
   ignore_files:
     - "*package.json"
@@ -17,6 +17,7 @@ compiler:
     - "*tsconfig.json"
     - "*yarn.lock"
     - "*node_modules/*"
+    - "*README.md"
 hardhat:
   fork:
     ethereum:
