@@ -1,18 +1,17 @@
 //  SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import "@openzeppelin/token/ERC20/IERC20.sol";
-import "@openzeppelin/token/ERC20/ERC20.sol";
-import "@openzeppelin/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IUniswap.sol";
 
 contract BunnyAiToken is ERC20, Ownable {
     mapping(address => bool) public blacklist;
     mapping(address => bool) public feeExempt;
 
-    uint8[3] public buyFees = [0, 0, 0];
-    uint8[3] public sellFees = [0, 0, 0];
-    uint8 public constant BASE = 100;
+    address public marketing;
+    address public stakingPool;
 
     uint public totalBuyFee;
     uint public totalSellFee;
@@ -24,12 +23,19 @@ contract BunnyAiToken is ERC20, Ownable {
 
     uint public minTokenSwap = 10 ether;
 
+    uint8[3] public buyFees = [0, 0, 0];
+    uint8[3] public sellFees = [0, 0, 0];
+    uint8 public constant BASE = 100;
+
     bool public tradingOpen = false;
 
     IUniswapV2Pair public pair;
     IUniswapV2Router02 public router;
 
-    constructor() ERC20("Bunny AI", "BUNAI") {
+    constructor(address _mkt, address _stk) ERC20("Bunny AI", "BUNAI") {
+        require(_mkt != address(0) && _stk != address(0), "Invalid address");
+        marketing = _mkt;
+        stakingPool = _stk;
         // 23 million tokens
         _mint(msg.sender, 23_000_000 ether);
         // max Tx amount is 1% of total supply
@@ -115,5 +121,27 @@ contract BunnyAiToken is ERC20, Ownable {
         require(_token != address(this), "Cannot withdraw BUNAI");
         uint256 balance = IERC20(_token).balanceOf(address(this));
         IERC20(_token).transfer(msg.sender, balance);
+    }
+
+    ///@notice set the marketing wallet address
+    ///@param _marketing Address of the new marketing wallet
+    ///@dev Marketing wallet address cannot be 0x0 or the current marketing wallet address
+    function setMarketingWallet(address _marketing) external onlyOwner {
+        require(
+            _marketing != address(0) && _marketing != marketing,
+            "Invalid address"
+        );
+        marketing = _marketing;
+    }
+
+    ///@notice set the staking pool address
+    ///@param _stakingPool Address of the new staking pool
+    ///@dev Staking pool address cannot be 0x0 or the current staking pool address
+    function setStakingPool(address _stakingPool) external onlyOwner {
+        require(
+            _stakingPool != address(0) && _stakingPool != stakingPool,
+            "Invalid address"
+        );
+        stakingPool = _stakingPool;
     }
 }
