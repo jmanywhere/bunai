@@ -9,23 +9,32 @@ import "./interfaces/IUniswap.sol";
 contract BunnyAiToken is ERC20, Ownable {
     mapping(address => bool) public blacklist;
     mapping(address => bool) public feeExempt;
+    mapping(address => bool) public maxTxExempt;
 
     address public marketing;
     address public stakingPool;
 
-    uint public totalBuyFee;
-    uint public totalSellFee;
+    uint public totalBuyFee = 6;
+    uint public totalSellFee = 6;
 
     uint public maxWalletAmount;
     uint public maxTxAmount;
     uint public maxBuyTxAmount;
     uint public maxSellTxAmount;
 
+    uint public marketingFees;
+    uint public stakingFees;
+    uint public liquidityFees;
+
+    uint public totalMarketingFees;
+    uint public totalStakingFees;
+    uint public totalLiquidityFees;
+
     uint public minTokenSwap = 10 ether;
 
-    uint8[3] public buyFees = [0, 0, 0];
-    uint8[3] public sellFees = [0, 0, 0];
-    uint8 public constant BASE = 100;
+    uint8[3] public buyFees = [1, 2, 3];
+    uint8[3] public sellFees = [3, 2, 1];
+    uint256 public constant BASE = 100;
 
     bool public tradingOpen = false;
 
@@ -40,8 +49,9 @@ contract BunnyAiToken is ERC20, Ownable {
         _mint(msg.sender, 23_000_000 ether);
         // max Tx amount is 1% of total supply
         maxTxAmount = 23_000_000 ether / 100;
+        maxBuyTxAmount = maxTxAmount;
         // max wallet amount is 2% of total supply
-        maxWalletAmount = maxTxAmount * 2;
+        maxWalletAmount = maxTxAmount * 3;
 
         // Set Uniswap V2 Router for both ETH and ARBITRUM
         if (block.chainid == 1) {
@@ -60,6 +70,89 @@ contract BunnyAiToken is ERC20, Ownable {
 
         setFeeExempt(address(this), true);
         setFeeExempt(owner(), true);
+        setMaxTxExempt(address(this), true);
+        setMaxTxExempt(owner(), true);
+    }
+
+    /// @notice Checks before Token Transfer
+    /// @param from Address of sender
+    /// @param to Address of receiver
+    /// @param amount Amount of tokens to transfer
+    /// @dev Checks if the sender and receiver are blacklisted or if amounts are within limits
+    function _beforeTransfer(
+        address from,
+        address to,
+        uint256 amount
+    ) internal {
+        if (from == address(0) || to == address(0)) return;
+        require(
+            !blacklist[from] && !blacklist[to],
+            "BUNAI: Blacklisted address"
+        );
+        // Only Owner can transfer tokens before trading is open
+        require(tradingOpen || from == owner(), "BUNAI: Trading blocked");
+
+        if (!maxTxExempt[from]) {
+            if (from == address(pair)) {
+                require(
+                    amount <= maxBuyTxAmount,
+                    "BUNAI: Max buy amount exceeded"
+                );
+            } else if (to == address(pair)) {
+                require(
+                    amount <= maxSellTxAmount,
+                    "BUNAI: Max sell amount exceeded"
+                );
+            }
+        }
+        if (to != address(pair) && to != address(router)) {
+            require(
+                balanceOf(to) + amount <= maxWalletAmount,
+                "BUNAI: Max wallet amount exceeded"
+            );
+        }
+    }
+
+    /// @notice Internal transfer tokens
+    /// @param sender Address of receiver
+    /// @param recipient Address of receiver
+    /// @param amount Amount of tokens to transfer
+    /// @dev calls _beforeTokenTransfer, manages taxes and transfers tokens
+    function _transfer(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) internal override {
+        _beforeTransfer(sender, recipient, amount);
+
+        if (
+            (sender == address(pair) && !feeExempt[recipient]) ||
+            (recipient == address(pair) && !feeExempt[sender])
+        ) {
+            uint totalFee = takeFee(amount, sender == address(pair));
+            super._transfer(sender, address(this), totalFee);
+            amount -= totalFee;
+        }
+
+        super._transfer(sender, recipient, amount);
+    }
+
+    function takeFee(
+        uint256 amount,
+        bool isBuy
+    ) internal returns (uint256 totalFee) {
+        uint selectedFee = isBuy ? totalBuyFee : totalSellFee;
+        totalFee = (selectedFee * amount) / BASE;
+
+        uint8[3] storage fees = isBuy ? buyFees : sellFees;
+
+        uint marketingFee = (fees[0] * totalFee) / selectedFee;
+        uint poolFee = (fees[1] * totalFee) / selectedFee;
+        uint liqFee = totalFee - marketingFee - poolFee;
+
+        marketingFees += marketingFee;
+        stakingFees += poolFee;
+        liquidityFees += liqFee;
     }
 
     // Only Owner section
@@ -143,5 +236,27 @@ contract BunnyAiToken is ERC20, Ownable {
             "Invalid address"
         );
         stakingPool = _stakingPool;
+    }
+
+    ///@notice set address to be exempt from max buys and sells
+    ///@param _address Address to be exempt
+    ///@param exempt true or false
+    function setMaxTxExempt(address _address, bool exempt) public onlyOwner {
+        maxTxExempt[_address] = exempt;
+    }
+
+    function setMaxBuy(uint256 _amount) external onlyOwner {
+        require(_amount >= maxTxAmount, "Invalid Max Buy Amount");
+        maxBuyTxAmount = _amount;
+    }
+
+    function setMaxSell(uint256 _amount) external onlyOwner {
+        require(_amount >= maxTxAmount, "Invalid Max Sell Amount");
+        maxSellTxAmount = _amount;
+    }
+
+    function setMaxTxAmount(uint256 _amount) external onlyOwner {
+        require(_amount >= totalSupply() / 100, "Invalid Max Tx Amount");
+        maxTxAmount = _amount;
     }
 }
