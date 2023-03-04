@@ -30,16 +30,32 @@ contract BunnyAiToken is ERC20, Ownable {
     uint public totalStakingFees;
     uint public totalLiquidityFees;
 
-    uint public minTokenSwap = 10 ether;
+    uint public swapThreshold = 10 ether;
 
     uint8[3] public buyFees = [1, 2, 3];
     uint8[3] public sellFees = [3, 2, 1];
     uint256 public constant BASE = 100;
+    address public constant DEAD_WALLET =
+        0x000000000000000000000000000000000000dEaD;
 
     bool public tradingOpen = false;
 
+    bool private swapping = false;
+
     IUniswapV2Pair public pair;
     IUniswapV2Router02 public router;
+
+    event SwapAndLiquify(
+        uint256 tokensSwapped,
+        uint256 ethReceived,
+        uint256 tokensIntoLiqudity
+    );
+
+    modifier swapExecuting() {
+        swapping = true;
+        _;
+        swapping = false;
+    }
 
     constructor(address _mkt, address _stk) ERC20("Bunny AI", "BUNAI") {
         require(_mkt != address(0) && _stk != address(0), "Invalid address");
@@ -50,6 +66,7 @@ contract BunnyAiToken is ERC20, Ownable {
         // max Tx amount is 1% of total supply
         maxTxAmount = 23_000_000 ether / 100;
         maxBuyTxAmount = maxTxAmount;
+        maxSellTxAmount = maxTxAmount;
         // max wallet amount is 2% of total supply
         maxWalletAmount = maxTxAmount * 3;
 
@@ -74,6 +91,9 @@ contract BunnyAiToken is ERC20, Ownable {
         setMaxTxExempt(owner(), true);
     }
 
+    /// @notice Allowed to receive ETH
+    receive() external payable {}
+
     /// @notice Checks before Token Transfer
     /// @param from Address of sender
     /// @param to Address of receiver
@@ -84,7 +104,7 @@ contract BunnyAiToken is ERC20, Ownable {
         address to,
         uint256 amount
     ) internal {
-        if (from == address(0) || to == address(0)) return;
+        if (from == address(0) || to == address(0) || swapping) return;
         require(
             !blacklist[from] && !blacklist[to],
             "BUNAI: Blacklisted address"
@@ -124,14 +144,24 @@ contract BunnyAiToken is ERC20, Ownable {
         uint256 amount
     ) internal override {
         _beforeTransfer(sender, recipient, amount);
+        if (!swapping) {
+            uint currentTokensHeld = balanceOf(address(this));
+            if (
+                currentTokensHeld >= swapThreshold &&
+                sender != address(pair) &&
+                sender != address(router)
+            ) {
+                _handleSwapAndDistribute(currentTokensHeld);
+            }
 
-        if (
-            (sender == address(pair) && !feeExempt[recipient]) ||
-            (recipient == address(pair) && !feeExempt[sender])
-        ) {
-            uint totalFee = takeFee(amount, sender == address(pair));
-            super._transfer(sender, address(this), totalFee);
-            amount -= totalFee;
+            if (
+                ((sender == address(pair) && !feeExempt[recipient]) ||
+                    (recipient == address(pair) && !feeExempt[sender]))
+            ) {
+                uint totalFee = takeFee(amount, sender == address(pair));
+                super._transfer(sender, address(this), totalFee);
+                amount -= totalFee;
+            }
         }
 
         super._transfer(sender, recipient, amount);
@@ -153,6 +183,91 @@ contract BunnyAiToken is ERC20, Ownable {
         marketingFees += marketingFee;
         stakingFees += poolFee;
         liquidityFees += liqFee;
+    }
+
+    function _handleSwapAndDistribute(uint tokensHeld) private swapExecuting {
+        uint totalFees = marketingFees + stakingFees + liquidityFees;
+
+        uint mkt = marketingFees;
+        uint stk = stakingFees;
+        uint liq = liquidityFees;
+
+        if (totalFees != tokensHeld) {
+            mkt = (marketingFees * tokensHeld) / totalFees;
+            stk = (stakingFees * tokensHeld) / totalFees;
+            liq = tokensHeld - mkt - stk;
+        }
+        if (liq > 0) _swapAndLiquify(liq);
+
+        if (mkt + stk > 0) {
+            swapTokensForEth(mkt + stk);
+            uint ethBalance = address(this).balance;
+            bool succ;
+            if (mkt > 0) {
+                mkt = (mkt * ethBalance) / (mkt + stk);
+                (succ, ) = payable(marketing).call{value: mkt}("");
+                require(succ);
+                totalMarketingFees += mkt;
+            }
+            if (stk > 0) {
+                stk = ethBalance - mkt;
+                (succ, ) = payable(stakingPool).call{value: stk}("");
+                require(succ);
+                totalStakingFees += stk;
+            }
+        }
+        marketingFees = 0;
+        stakingFees = 0;
+        liquidityFees = 0;
+    }
+
+    function swapAndLiquify() public swapExecuting {
+        require(
+            liquidityFees >= balanceOf(address(this)),
+            "BUNAI: Not enough tokens"
+        );
+        _swapAndLiquify(liquidityFees);
+        liquidityFees = 0;
+    }
+
+    function _swapAndLiquify(uint tokens) private {
+        uint half = tokens / 2;
+        uint otherHalf = tokens - half;
+
+        uint initialBalance = address(this).balance;
+
+        swapTokensForEth(half);
+
+        uint newBalance = address(this).balance - initialBalance;
+
+        (, , uint liquidity) = router.addLiquidityETH{value: newBalance}(
+            address(this),
+            otherHalf,
+            0,
+            0,
+            DEAD_WALLET,
+            block.timestamp
+        );
+
+        totalLiquidityFees += liquidity;
+
+        emit SwapAndLiquify(half, newBalance, liquidity);
+    }
+
+    function swapTokensForEth(uint tokens) private {
+        address[] memory path = new address[](2);
+        path[0] = address(this);
+        path[1] = router.WETH();
+
+        _approve(address(this), address(router), tokens);
+
+        router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            tokens,
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
     }
 
     // Only Owner section
@@ -216,6 +331,11 @@ contract BunnyAiToken is ERC20, Ownable {
         IERC20(_token).transfer(msg.sender, balance);
     }
 
+    /// @notice recover ETH sent to the contract
+    function recoverETH() external onlyOwner {
+        payable(msg.sender).transfer(address(this).balance);
+    }
+
     ///@notice set the marketing wallet address
     ///@param _marketing Address of the new marketing wallet
     ///@dev Marketing wallet address cannot be 0x0 or the current marketing wallet address
@@ -258,5 +378,10 @@ contract BunnyAiToken is ERC20, Ownable {
     function setMaxTxAmount(uint256 _amount) external onlyOwner {
         require(_amount >= totalSupply() / 100, "Invalid Max Tx Amount");
         maxTxAmount = _amount;
+    }
+
+    function setSwapThreshold(uint256 _amount) external onlyOwner {
+        require(_amount >= 0, "Invalid Min Token Swap Amount");
+        swapThreshold = _amount;
     }
 }
