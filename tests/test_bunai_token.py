@@ -178,7 +178,7 @@ def test_sell_fees(liquidity_setup, accounts, chain):
         1_000 * int(1e18),
         0,
         [token.address, router.WETH()],
-        accounts[2].address,
+        accounts[1].address,
         chain.pending_timestamp + 3600,
         sender=accounts[1],
     ).await_confirmations()
@@ -196,5 +196,51 @@ def test_sell_fees(liquidity_setup, accounts, chain):
     assert marketing / (marketing + staking + liquidity) == 3 / 6
     assert staking / (marketing + staking + liquidity) == 2 / 6
     assert liquidity / (marketing + staking + liquidity) == 1 / 6
+
+    pass
+
+
+def test_tax_distribution(liquidity_setup, accounts, chain):
+    (token, _, router, *_) = liquidity_setup
+
+    token.approve(router.address, token.totalSupply(), sender=accounts[1])
+
+    router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+        1_000 * int(1e18),
+        0,
+        [token.address, router.WETH()],
+        accounts[1].address,
+        chain.pending_timestamp + 3600,
+        sender=accounts[1],
+    )
+
+    init_marketing_balance = accounts[8].balance
+    init_staking_balance = accounts[9].balance
+
+    # Trigger auto-swap and distribute fees
+    rc = token.transfer(
+        accounts[2].address, int(1e18), sender=accounts[1]
+    ).await_confirmations()
+
+    assert token.balanceOf(token.address) < int(1e18 * 0.5)
+    assert token.marketingFees() == 0
+    assert token.stakingFees() == 0
+    assert token.liquidityFees() == 0
+
+    assert token.totalMarketingFees() > 0
+    assert token.totalStakingFees() > 0
+    assert token.totalLiquidityFees() > 0
+
+    assert project.IUniswapV2Pair.at(token.pair()).balanceOf(token.DEAD_WALLET()) > 0
+
+    assert token.totalLiquidityFees() == project.IUniswapV2Pair.at(
+        token.pair()
+    ).balanceOf(token.DEAD_WALLET())
+
+    marketing_balance = accounts[8].balance - init_marketing_balance
+    staking_balance = accounts[9].balance - init_staking_balance
+
+    assert marketing_balance == token.totalMarketingFees()
+    assert staking_balance == token.totalStakingFees()
 
     pass
