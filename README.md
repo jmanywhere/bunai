@@ -25,6 +25,8 @@ The contracts are built in solidity and are meant for the ETH and ARB blockchain
   - add / remove fee exclusion status
 - Blacklist
   - blacklist addresses so the funds in their wallets cannot move.
+- MEV Sandwich Block
+  - block transfers when transactions happen in less than 5 blocks. There is a function to exclude other wallets.
 
 ### Taxes
 
