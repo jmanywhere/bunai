@@ -64,6 +64,31 @@ def test_transfer_blocked_without_fees(token_setup, accounts):
     assert token.balanceOf(accounts[1].address) == 0
 
 
+def test_cooldown(token_setup, accounts, chain):
+    (token, owner, *_) = token_setup
+    user1 = accounts[1]
+    user2 = accounts[2]
+    user3 = accounts[3]
+    # No cooldown for owner
+    token.openTrade(sender=owner)
+    token.transfer(user1.address, 1000, sender=owner)
+    token.transfer(user2.address, 1000, sender=owner)
+
+    # cooldown on other users
+    token.transfer(user2.address, 500, sender=user1)
+    with reverts("BUNAI: Bot?"):
+        token.transfer(user3.address, 500, sender=user1)
+
+    chain.mine(1)
+
+    with reverts("BUNAI: Bot?"):
+        token.transfer(user3.address, 500, sender=user1)
+
+    chain.mine(4)
+    token.transfer(user3.address, 500, sender=user1)
+    assert token.balanceOf(user3.address) == 500
+
+
 def test_transfer_with_fees(token_setup, accounts):
     (token, owner, *_) = token_setup
 
@@ -216,6 +241,8 @@ def test_tax_distribution(liquidity_setup, accounts, chain):
 
     init_marketing_balance = accounts[8].balance
     init_staking_balance = accounts[9].balance
+
+    chain.mine(5)
 
     # Trigger auto-swap and distribute fees
     rc = token.transfer(
