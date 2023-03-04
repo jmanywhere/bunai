@@ -119,7 +119,7 @@ def liquidity_setup(token_setup, chain, accounts):
     token.openTrade(sender=owner)
     token.approve(router.address, token.totalSupply(), sender=owner)
 
-    tokensForLiquidity = 1_000_000 * int(1e18)
+    tokensForLiquidity = 10_000_000 * int(1e18)
     ethForLiquidity = 200 * int(1e18)
 
     # NOTICE: OWNER IS EXEMPT FROM MAX TX BUY/SELL
@@ -142,7 +142,7 @@ def liquidity_setup(token_setup, chain, accounts):
 def test_buy_fees(liquidity_setup, accounts, chain):
     (token, _, router, *_) = liquidity_setup
 
-    response = router.swapExactETHForTokens(
+    router.swapExactETHForTokens(
         0,
         [router.WETH(), token.address],
         accounts[2].address,
@@ -167,6 +167,34 @@ def test_buy_fees(liquidity_setup, accounts, chain):
     pass
 
 
-def test_sell_fees(liquidity_setup, accounts):
+def test_sell_fees(liquidity_setup, accounts, chain):
+
+    (token, _, router, *_) = liquidity_setup
+
+    token.approve(router.address, token.totalSupply(), sender=accounts[1])
+    assert token.allowance(accounts[1].address, router.address) == token.totalSupply()
+
+    router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+        1_000 * int(1e18),
+        0,
+        [token.address, router.WETH()],
+        accounts[2].address,
+        chain.pending_timestamp + 3600,
+        sender=accounts[1],
+    ).await_confirmations()
+
+    assert token.balanceOf(accounts[1].address) > 0
+
+    marketing = token.marketingFees()
+    staking = token.stakingFees()
+    liquidity = token.liquidityFees()
+
+    assert token.marketingFees() > 0
+    assert token.stakingFees() > 0
+    assert token.liquidityFees() > 0
+
+    assert marketing / (marketing + staking + liquidity) == 3 / 6
+    assert staking / (marketing + staking + liquidity) == 2 / 6
+    assert liquidity / (marketing + staking + liquidity) == 1 / 6
 
     pass
