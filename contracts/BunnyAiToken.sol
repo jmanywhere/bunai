@@ -10,7 +10,10 @@ contract BunnyAiToken is ERC20, Ownable {
     mapping(address => bool) public blacklist;
     mapping(address => bool) public feeExempt;
     mapping(address => bool) public maxTxExempt;
-    mapping(address => uint) public lastTx;
+    mapping(address => uint) private lastTx;
+    mapping(address => bool) private cooldownWhitelist;
+
+    uint8 public constant blockCooldown = 5;
 
     address public marketing;
     address public stakingPool;
@@ -90,6 +93,11 @@ contract BunnyAiToken is ERC20, Ownable {
         setFeeExempt(owner(), true);
         setMaxTxExempt(address(this), true);
         setMaxTxExempt(owner(), true);
+        setCooldownWhitelist(address(this), true);
+        setCooldownWhitelist(owner(), true);
+        setCooldownWhitelist(marketing, true);
+        setCooldownWhitelist(address(pair), true);
+        setCooldownWhitelist(address(router), true);
     }
 
     /// @notice Allowed to receive ETH
@@ -132,8 +140,10 @@ contract BunnyAiToken is ERC20, Ownable {
                 "BUNAI: Max wallet amount exceeded"
             );
         }
-        require(lastTx[from] < block.number, "BUNAI: Bot?");
-        lastTx[from] = block.number;
+        if (!cooldownWhitelist[from]) {
+            require(lastTx[from] <= block.number, "BUNAI: Bot?");
+            lastTx[from] = block.number + blockCooldown;
+        }
     }
 
     /// @notice Internal transfer tokens
@@ -387,5 +397,12 @@ contract BunnyAiToken is ERC20, Ownable {
     function setSwapThreshold(uint256 _amount) external onlyOwner {
         require(_amount >= 0, "Invalid Min Token Swap Amount");
         swapThreshold = _amount;
+    }
+
+    function setCooldownWhitelist(
+        address _address,
+        bool _whitelist
+    ) public onlyOwner {
+        cooldownWhitelist[_address] = _whitelist;
     }
 }
