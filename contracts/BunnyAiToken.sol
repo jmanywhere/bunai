@@ -10,6 +10,7 @@ contract BunnyAiToken is ERC20, Ownable {
     mapping(address => bool) public blacklist;
     mapping(address => bool) public feeExempt;
     mapping(address => bool) public maxTxExempt;
+    mapping(address => uint) public lastTx;
 
     address public marketing;
     address public stakingPool;
@@ -131,6 +132,8 @@ contract BunnyAiToken is ERC20, Ownable {
                 "BUNAI: Max wallet amount exceeded"
             );
         }
+        require(lastTx[from] < block.number, "BUNAI: Bot?");
+        lastTx[from] = block.number;
     }
 
     /// @notice Internal transfer tokens
@@ -240,6 +243,7 @@ contract BunnyAiToken is ERC20, Ownable {
 
         uint newBalance = address(this).balance - initialBalance;
 
+        _approve(address(this), address(router), otherHalf);
         (, , uint liquidity) = router.addLiquidityETH{value: newBalance}(
             address(this),
             otherHalf,
