@@ -39,3 +39,10 @@ Taxes are split to 3 different addresses.
 #### Buy Taxes
 
 #### Sell Taxes
+
+## Dev Environment
+
+Tests using Apeworx
+Underlying dev chain: Hardhat
+To run tests, please run `ape test --network ethereum:mainnet-fork:hardhat`
+for interactivity, add the ` -I` flag
