@@ -18,8 +18,8 @@ contract BunnyAiToken is ERC20, Ownable {
     address public marketing;
     address public stakingPool;
 
-    uint public totalBuyFee = 6;
-    uint public totalSellFee = 6;
+    uint public totalBuyFee;
+    uint public totalSellFee;
 
     uint public maxWalletAmount;
     uint public maxTxAmount;
@@ -36,8 +36,8 @@ contract BunnyAiToken is ERC20, Ownable {
 
     uint public swapThreshold = 10 ether;
 
-    uint8[3] public buyFees = [1, 2, 3];
-    uint8[3] public sellFees = [3, 2, 1];
+    uint8[3] public buyFees;
+    uint8[3] public sellFees;
     uint256 public constant BASE = 100;
     address public constant DEAD_WALLET =
         0x000000000000000000000000000000000000dEaD;
@@ -74,6 +74,16 @@ contract BunnyAiToken is ERC20, Ownable {
         maxSellTxAmount = maxTxAmount;
         // max wallet amount is 2% of total supply
         maxWalletAmount = maxTxAmount * 3;
+
+        buyFees[0] = 5;
+        buyFees[1] = 2;
+        buyFees[2] = 1;
+        sellFees[0] = 5;
+        sellFees[1] = 2;
+        sellFees[2] = 1;
+
+        totalBuyFee = buyFees[0] + buyFees[1] + buyFees[2];
+        totalSellFee = sellFees[0] + sellFees[1] + sellFees[2];
 
         // Set Uniswap V2 Router for both ETH and ARBITRUM
         if (block.chainid == 1) {

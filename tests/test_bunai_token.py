@@ -201,7 +201,7 @@ def liquidity_setup(token_setup, chain, accounts):
 def test_buy_fees(liquidity_setup, accounts, chain):
     (token, _, router, *_) = liquidity_setup
 
-    router.swapExactETHForTokens(
+    router.swapExactETHForTokensSupportingFeeOnTransferTokens(
         0,
         [router.WETH(), token.address],
         accounts[2].address,
@@ -219,9 +219,9 @@ def test_buy_fees(liquidity_setup, accounts, chain):
     assert token.stakingFees() > 0
     assert token.liquidityFees() > 0
 
-    assert marketing / (marketing + staking + liquidity) == 1 / 6
-    assert staking / (marketing + staking + liquidity) == 2 / 6
-    assert liquidity / (marketing + staking + liquidity) == 3 / 6
+    assert marketing / (marketing + staking + liquidity) == 5 / 8
+    assert staking / (marketing + staking + liquidity) == 2 / 8
+    assert liquidity / (marketing + staking + liquidity) == 1 / 8
 
     pass
 
@@ -252,9 +252,9 @@ def test_sell_fees(liquidity_setup, accounts, chain):
     assert token.stakingFees() > 0
     assert token.liquidityFees() > 0
 
-    assert marketing / (marketing + staking + liquidity) == 3 / 6
-    assert staking / (marketing + staking + liquidity) == 2 / 6
-    assert liquidity / (marketing + staking + liquidity) == 1 / 6
+    assert marketing / (marketing + staking + liquidity) == 5 / 8
+    assert staking / (marketing + staking + liquidity) == 2 / 8
+    assert liquidity / (marketing + staking + liquidity) == 1 / 8
 
     pass
 
