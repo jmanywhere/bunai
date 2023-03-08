@@ -107,6 +107,40 @@ def test_transfer_with_fees(token_setup, accounts):
     pass
 
 
+def test_burn(token_setup, accounts):
+    (token, owner, *_) = token_setup
+
+    tokens_to_transfer = 1000 * int(1e18)
+
+    token.openTrade(sender=owner)
+    token.transfer(accounts[1].address, tokens_to_transfer, sender=owner)
+
+    # Burn tokens
+    with reverts("ERC20: burn amount exceeds balance"):
+        token.burn(tokens_to_transfer + 1, sender=accounts[1])
+
+    token.burn(tokens_to_transfer, sender=accounts[1])
+    assert token.balanceOf(accounts[1].address) == 0
+    assert token.totalSupply() == 23_000_000 * int(1e18) - tokens_to_transfer
+
+
+def test_burn_from(token_setup, accounts):
+    (token, owner, *_) = token_setup
+
+    tokens_to_transfer = 1000 * int(1e18)
+
+    token.openTrade(sender=owner)
+    token.transfer(accounts[1].address, tokens_to_transfer, sender=owner)
+
+    # Burn tokens
+    with reverts("BUNAI: Not enough allowance"):
+        token.burnFrom(accounts[1].address, tokens_to_transfer, sender=owner)
+    token.approve(owner.address, tokens_to_transfer, sender=accounts[1])
+    token.burnFrom(accounts[1].address, tokens_to_transfer, sender=owner)
+    assert token.balanceOf(accounts[1].address) == 0
+    assert token.totalSupply() == 23_000_000 * int(1e18) - tokens_to_transfer
+
+
 def test_add_liquidity(token_setup, chain, accounts):
     user1 = accounts[1]
     (token, owner, router, factory) = token_setup

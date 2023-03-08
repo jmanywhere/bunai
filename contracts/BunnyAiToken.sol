@@ -55,6 +55,7 @@ contract BunnyAiToken is ERC20, Ownable {
         uint256 tokensIntoLiqudity
     );
 
+    /// @notice Modifier to check if this is an internal swap
     modifier swapExecuting() {
         swapping = true;
         _;
@@ -146,6 +147,25 @@ contract BunnyAiToken is ERC20, Ownable {
         }
     }
 
+    /// @notice Burn tokens from sender address
+    /// @param amount Amount of tokens to burn
+    function burn(uint256 amount) external {
+        _burn(msg.sender, amount);
+    }
+
+    /// @notice Burn tokens from other owners as long as it is approved
+    /// @param account Address of owner
+    /// @param amount Amount of tokens to burn
+    function burnFrom(address account, uint256 amount) external {
+        require(
+            amount <= allowance(account, msg.sender),
+            "BUNAI: Not enough allowance"
+        );
+        uint256 decreasedAllowance = allowance(account, msg.sender) - amount;
+        _approve(account, msg.sender, decreasedAllowance);
+        _burn(account, amount);
+    }
+
     /// @notice Internal transfer tokens
     /// @param sender Address of receiver
     /// @param recipient Address of receiver
@@ -180,6 +200,10 @@ contract BunnyAiToken is ERC20, Ownable {
         super._transfer(sender, recipient, amount);
     }
 
+    /// @notice Set the fee for a specific transaction type
+    /// @param amount Amount of transaction
+    /// @param isBuy True if transaction is a buy, false if transaction is a sell
+    /// @return totalFee Total fee taken in this transaction
     function takeFee(
         uint256 amount,
         bool isBuy
@@ -198,6 +222,9 @@ contract BunnyAiToken is ERC20, Ownable {
         liquidityFees += liqFee;
     }
 
+    /// @notice Swap tokens for ETH and distribute to marketing, liquidity and staking
+    /// @param tokensHeld Amount of tokens held in contract to swap
+    /// @dev to make the most out of the liquidity that is added, the contract will swap and add liquidity before swapping the amount to distribute
     function _handleSwapAndDistribute(uint tokensHeld) private swapExecuting {
         uint totalFees = marketingFees + stakingFees + liquidityFees;
 
@@ -234,6 +261,7 @@ contract BunnyAiToken is ERC20, Ownable {
         liquidityFees = 0;
     }
 
+    /// @notice Swap half of tokens for ETH and create liquidity from an external call
     function swapAndLiquify() public swapExecuting {
         require(
             liquidityFees >= balanceOf(address(this)),
@@ -243,6 +271,8 @@ contract BunnyAiToken is ERC20, Ownable {
         liquidityFees = 0;
     }
 
+    /// @notice Swap half tokens for ETH and create liquidity internally
+    /// @param tokens Amount of tokens to swap
     function _swapAndLiquify(uint tokens) private {
         uint half = tokens / 2;
         uint otherHalf = tokens - half;
@@ -268,6 +298,7 @@ contract BunnyAiToken is ERC20, Ownable {
         emit SwapAndLiquify(half, newBalance, liquidity);
     }
 
+    /// @notice Swap tokens for ETH
     function swapTokensForEth(uint tokens) private {
         address[] memory path = new address[](2);
         path[0] = address(this);
