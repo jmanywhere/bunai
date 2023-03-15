@@ -388,7 +388,10 @@ contract BunnyAiToken is ERC20, Ownable {
 
     /// @notice recover ETH sent to the contract
     function recoverETH() external onlyOwner {
-        payable(msg.sender).call{value: address(this).balance}("");
+        (bool succ, ) = payable(msg.sender).call{value: address(this).balance}(
+            ""
+        );
+        require(succ, "Transfer failed");
     }
 
     ///@notice set the marketing wallet address
