@@ -117,7 +117,7 @@ contract FoundersLoot is Ownable {
 
     ///@notice Calculate pending rewards for multiple NFTs
     ///@param _tokenIds ids of the NFTs
-    ///@return total pending rewards in ETH
+    ///@return totalPending total pending rewards in ETH
     ///@dev this function is used to calculate the amount of BUNAI to burn when claiming multiple NFTs
     ///@dev though a repeat is counted multiple times, it can only be claimed once.
     function pendingRewardFromMultiple(
