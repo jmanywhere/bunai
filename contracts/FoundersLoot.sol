@@ -16,24 +16,33 @@ contract FoundersLoot is Ownable {
     }
     mapping(uint8 => NFTClaim) public claimed;
 
-    uint256 public constant MAGNIFY_FACTOR = 1e12;
+    uint256 public constant MAGNIFY_FACTOR = 1e12; // This helps with math precision
     // NFT address
-    IBunaiNft public founderNFT;
+    IBunaiNft public immutable founderNFT;
     // BUNAI address
-    BunnyAiToken public bunai;
+    BunnyAiToken public immutable bunai;
+    // Accumulated rewards per NFT * Magnify factor
     uint256 public accumulatedRewardsPerNFT;
+    // BUNAI amount to burn to claim
     uint256 public burnBunai;
+    // Reentrancy guard
     bool public reentrancyGuard;
+    // Total NFTs in existence
     uint256 public totalNFTs;
 
+    event Claim(address indexed user, uint256 amount);
+
+    ///@notice Reentrancy guard modifier
     modifier nonReentrant() {
         require(!reentrancyGuard, "ReentrancyGuard: reentrant call");
         reentrancyGuard = true;
         _;
         reentrancyGuard = false;
     }
-    event Claim(address indexed user, uint256 amount);
 
+    /// @notice Constructor, here we set the initial burn BUNAI amount as well as totalNFTs
+    /// @param _founderNFT the address of the Founder's NFT contract
+    /// @param _bunai the address of the BUNAI token contract
     constructor(address _founderNFT, address payable _bunai) {
         require(
             _founderNFT != address(0) && _bunai != address(0),
@@ -52,6 +61,9 @@ contract FoundersLoot is Ownable {
         accumulatedRewardsPerNFT += (msg.value * MAGNIFY_FACTOR) / totalNFTs;
     }
 
+    ///@notice Send ETH to user
+    ///@param _amount amount of ETH to send
+    ///@dev if nothing to send, will revert as well if there is not enough ETH in the contract;
     function sendETH(uint _amount) private {
         require(_amount > 0, "Nothing to claim");
         require(_amount <= address(this).balance, "Insufficient balance");
@@ -60,12 +72,17 @@ contract FoundersLoot is Ownable {
     }
 
     ///@notice External claim function
+    ///@param _tokenId id of the NFT to claim
+    ///@dev To claim pending rewards a BUNAI burn needs to occur by accessing the BUNAI `burnFrom` function
     function claim(uint8 _tokenId) external nonReentrant {
         uint reward = _claim(_tokenId);
         if (reward != 0) _burnToClaim(1);
         sendETH(reward);
     }
 
+    ///@notice External claim function for multiple NFTs
+    ///@param _tokenIds ids of the NFTs to claim, all ids must belong to msg sender
+    ///@dev To claim pending rewards a BUNAI burn needs to occur by accessing the BUNAI `burnFrom` function, amount to burn depends on amount of NFT's claimed
     function claimMultiple(uint8[] calldata _tokenIds) external nonReentrant {
         uint totalReward = 0;
         for (uint8 i = 0; i < _tokenIds.length; i++) {
@@ -98,6 +115,11 @@ contract FoundersLoot is Ownable {
         return (accumulatedRewardsPerNFT - nft.accTracker) / MAGNIFY_FACTOR;
     }
 
+    ///@notice Calculate pending rewards for multiple NFTs
+    ///@param _tokenIds ids of the NFTs
+    ///@return total pending rewards in ETH
+    ///@dev this function is used to calculate the amount of BUNAI to burn when claiming multiple NFTs
+    ///@dev though a repeat is counted multiple times, it can only be claimed once.
     function pendingRewardFromMultiple(
         uint8[] calldata _tokenIds
     ) external view returns (uint256 totalPending) {
