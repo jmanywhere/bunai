@@ -2,6 +2,13 @@
 
 The contracts are built in solidity and are meant for the ETH and ARB blockchains.
 
+## Dev Environment
+
+Tests using Apeworx
+Underlying dev chain: Hardhat
+To run tests, please run `ape test --network ethereum:mainnet-fork:hardhat`
+for interactivity, add the ` -I` flag
+
 ## Requirements
 
 - 23M total Supply
@@ -40,9 +47,18 @@ Taxes are split to 3 different addresses.
 
 #### Sell Taxes
 
-## Dev Environment
+# Founder's Loot (NFT Staking contract)
 
-Tests using Apeworx
-Underlying dev chain: Hardhat
-To run tests, please run `ape test --network ethereum:mainnet-fork:hardhat`
-for interactivity, add the ` -I` flag
+## Requirements
+
+- NFT Bunny AI Founder (`0xbB520cE73Fd6e3F5777f583705db081BA3Dd65Ac`) can claim funds by tokenId
+- Rewards will be in ETH
+- All Founder NFTs are worth an equal portion
+- In order to claim any rewards, a BURN fee of BUNAI token is claimed per NFT. Starting at 100 BUNAI per token
+- Only owner of tokenId can claim at any given time.
+
+### Note to USERS
+
+Please make sure that BUNAI is approved to spend by the FoundersLoot contract.
+Trying to claim the same rewards twice will result in double the BUNAI required to burn
+and single amount of rewards claimed.
