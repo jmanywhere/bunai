@@ -12,6 +12,8 @@ contract BunnyAiToken is ERC20, Ownable {
     mapping(address => bool) public maxTxExempt;
     mapping(address => uint) private lastTx;
     mapping(address => bool) private cooldownWhitelist;
+    mapping(address => bool) public preExemption;
+    mapping(address => bool) public maxWalletExempt;
 
     uint8 public constant blockCooldown = 5;
 
@@ -43,7 +45,7 @@ contract BunnyAiToken is ERC20, Ownable {
         0x000000000000000000000000000000000000dEaD;
 
     bool public tradingOpen = false;
-
+    bool public limitsRemoved = false;
     bool private swapping = false;
 
     IUniswapV2Pair public pair;
@@ -109,6 +111,13 @@ contract BunnyAiToken is ERC20, Ownable {
         setCooldownWhitelist(marketing, true);
         setCooldownWhitelist(address(pair), true);
         setCooldownWhitelist(address(router), true);
+        setMaxWalletExempt(address(this), true);
+        setMaxWalletExempt(owner(), true);
+        setMaxWalletExempt(marketing, true);
+        setMaxWalletExempt(address(pair), true);
+        setMaxWalletExempt(address(router), true);
+        setPreExemption(address(this), true);
+        setPreExemption(owner(), true);
     }
 
     /// @notice Allowed to receive ETH
@@ -124,13 +133,14 @@ contract BunnyAiToken is ERC20, Ownable {
         address to,
         uint256 amount
     ) internal {
-        if (from == address(0) || to == address(0) || swapping) return;
+        if (limitsRemoved || from == address(0) || to == address(0) || swapping)
+            return;
         require(
             !blacklist[from] && !blacklist[to],
             "BUNAI: Blacklisted address"
         );
         // Only Owner can transfer tokens before trading is open
-        require(tradingOpen || from == owner(), "BUNAI: Trading blocked");
+        if (!tradingOpen) require(preExemption[from], "BUNAI: Trading blocked");
 
         if (!maxTxExempt[from]) {
             if (from == address(pair)) {
@@ -145,7 +155,7 @@ contract BunnyAiToken is ERC20, Ownable {
                 );
             }
         }
-        if (to != address(pair) && to != address(router)) {
+        if (!maxWalletExempt[to]) {
             require(
                 balanceOf(to) + amount <= maxWalletAmount,
                 "BUNAI: Max wallet amount exceeded"
@@ -438,6 +448,11 @@ contract BunnyAiToken is ERC20, Ownable {
         maxTxAmount = _amount;
     }
 
+    function setMaxWalletAmount(uint256 _amount) external onlyOwner {
+        require(_amount >= totalSupply() / 100, "Invalid Max Wallet Amount");
+        maxWalletAmount = _amount;
+    }
+
     function setSwapThreshold(uint256 _amount) external onlyOwner {
         require(_amount >= 0, "Invalid Min Token Swap Amount");
         swapThreshold = _amount;
@@ -448,5 +463,20 @@ contract BunnyAiToken is ERC20, Ownable {
         bool _whitelist
     ) public onlyOwner {
         cooldownWhitelist[_address] = _whitelist;
+    }
+
+    function setPreExemption(address _address, bool _exempt) public onlyOwner {
+        preExempt[_address] = _exempt;
+    }
+
+    function setMaxWalletExempt(
+        address _address,
+        bool _exempt
+    ) public onlyOwner {
+        maxWalletExempt[_address] = _exempt;
+    }
+
+    function removeAllLimits() external onlyOwner {
+        limitsRemoved = true;
     }
 }
