@@ -466,7 +466,7 @@ contract BunnyAiToken is ERC20, Ownable {
     }
 
     function setPreExemption(address _address, bool _exempt) public onlyOwner {
-        preExempt[_address] = _exempt;
+        preExemption[_address] = _exempt;
     }
 
     function setMaxWalletExempt(
