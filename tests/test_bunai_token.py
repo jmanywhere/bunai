@@ -56,12 +56,68 @@ def test_transfer_blocked_without_fees(token_setup, accounts):
     with reverts("BUNAI: Trading blocked"):
         token.transfer(accounts[2].address, 1000, sender=accounts[1])
 
+    token.setPreExemption(accounts[1].address, True, sender=owner)
+    assert token.preExemption(accounts[1].address)
+    token.transfer(accounts[2].address, 1000, sender=accounts[1])
+    assert token.balanceOf(accounts[2].address) == 1000
+    assert token.balanceOf(accounts[1].address) == 0
+
+
+def test_transfer_ok_when_exempt(token_setup, accounts):
+    (token, owner, *_) = token_setup
+
+    # Transfer tokens to another account
+    token.transfer(accounts[1].address, 1000, sender=owner)
     token.openTrade(sender=owner)
+
     token.setFeeExempt(accounts[1].address, True, sender=owner)
 
     token.transfer(accounts[2].address, 1000, sender=accounts[1])
     assert token.balanceOf(accounts[2].address) == 1000
     assert token.balanceOf(accounts[1].address) == 0
+
+
+def test_max_wallet_exempt(token_setup, accounts):
+    (token, owner, *_) = token_setup
+
+    # Transfer tokens to another account
+    token.openTrade(sender=owner)
+
+    with reverts("Invalid Max Wallet Amount"):
+        token.setMaxWalletAmount(1000, sender=owner)
+
+    max_wallet = int(1e18) * 23_000_0
+    transfer_amount = max_wallet * 2
+
+    token.setMaxWalletAmount(max_wallet, sender=owner)
+
+    with reverts("BUNAI: Max wallet amount exceeded"):
+        token.transfer(accounts[3].address, transfer_amount, sender=owner)
+
+    token.setMaxWalletExempt(accounts[3].address, True, sender=owner)
+
+    token.transfer(accounts[3].address, transfer_amount, sender=owner)
+    assert token.balanceOf(accounts[3].address) == transfer_amount
+
+
+def test_remove_limits(token_setup, accounts):
+    (token, owner, *_) = token_setup
+
+    # Transfer tokens to another account
+    token.openTrade(sender=owner)
+
+    max_wallet = int(1e18) * 23_000_0
+    transfer_amount = max_wallet * 2
+
+    token.setMaxWalletAmount(max_wallet, sender=owner)
+
+    with reverts("BUNAI: Max wallet amount exceeded"):
+        token.transfer(accounts[3].address, transfer_amount, sender=owner)
+
+    token.removeAllLimits(sender=owner)
+
+    token.transfer(accounts[3].address, transfer_amount, sender=owner)
+    assert token.balanceOf(accounts[3].address) == transfer_amount
 
 
 def test_cooldown(token_setup, accounts, chain):
